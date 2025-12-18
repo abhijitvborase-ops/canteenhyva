@@ -1,85 +1,120 @@
 import { inject } from '@angular/core';
 import { Routes, Router, CanActivateFn } from '@angular/router';
-import { AuthService } from './services/auth.service';
+import { DbService } from './app/services/db.service';
+
+/* =========================
+   COMPONENT IMPORTS
+   ========================= */
 import { LoginComponent } from './components/login/login.component';
+
+import { AdminLayoutComponent } from './components/admin-layout/admin-layout';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
+import { AnalyticsDashboardComponent } from './components/analytics-dashboard/analytics-dashboard.component';
+import { EmployeeManagementComponent } from './components/employee-management/employee-management.component';
+import { ManageContractorsComponent } from './components/manage-contractors/manage-contractors.component';
+import { ManageCouponsComponent } from './components/manage-coupons/manage-coupons.component';
+import { HistoryComponent } from './components/history/history.component';
+import { EmployeeHistoryComponent } from './components/employee-history/employee-history.component';
+import { SettingsComponent } from './components/settings/settings.component';
+import { AddEmployeeComponent } from './components/add-employee/add-employee.component';
+
 import { EmployeeDashboardComponent } from './components/user-dashboard/user-dashboard.component';
 import { CanteenManagerDashboardComponent } from './components/canteen-manager-dashboard/canteen-manager-dashboard.component';
-import { AddEmployeeComponent } from './components/add-employee/add-employee.component';
-import { SettingsComponent } from './components/settings/settings.component';
-import { ManageCouponsComponent } from './components/manage-coupons/manage-coupons.component';
-import { EmployeeManagementComponent } from './components/employee-management/employee-management.component';
-import { HistoryComponent } from './components/history/history.component';
 import { RedeemCouponComponent } from './components/redeem-coupon/redeem-coupon.component';
-import { ChangePasswordComponent } from './components/change-password/change-password.component';
-import { ManageContractorsComponent } from './components/manage-contractors/manage-contractors.component';
-import { ContractorDashboardComponent } from './components/contractor-dashboard/contractor-dashboard.component';
-import { EmployeeHistoryComponent } from './components/employee-history/employee-history.component';
-import { AnalyticsDashboardComponent } from './components/analytics-dashboard/analytics-dashboard.component';
 import { MenuManagementComponent } from './components/menu-management/menu-management.component';
+import { ContractorDashboardComponent } from './components/contractor-dashboard/contractor-dashboard.component';
+import { ChangePasswordComponent } from './components/change-password/change-password.component';
 
-const authGuard: CanActivateFn = (route, state) => {
-  const authService = inject(AuthService);
-  // FIX: Explicitly type the injected Router to resolve type inference issue.
-  const router: Router = inject(Router);
-
-  if (authService.currentUser()) {
-    return true;
-  }
-  return router.parseUrl('/login');
+/* =========================
+   AUTH GUARDS
+   ========================= */
+const authGuard: CanActivateFn = () => {
+  const db = inject(DbService);
+  const router = inject(Router);
+  return db.currentUser() ? true : router.parseUrl('/login');
 };
 
-const adminGuard: CanActivateFn = (route, state) => {
-    const authService = inject(AuthService);
-    // FIX: Explicitly type the injected Router to resolve type inference issue.
-    const router: Router = inject(Router);
-    const user = authService.currentUser();
-    if(user && 'role' in user && user.role === 'admin') {
-        return true;
-    }
-    // if not admin, redirect to login
-    return router.parseUrl('/login'); 
+const adminGuard: CanActivateFn = () => {
+  const db = inject(DbService);
+  const router = inject(Router);
+  return db.currentUser()?.role === 'admin'
+    ? true
+    : router.parseUrl('/login');
 };
 
-const superAdminGuard: CanActivateFn = (route, state) => {
-    const authService = inject(AuthService);
-    const router: Router = inject(Router);
-    const user = authService.currentUser();
-    if(user && 'employeeId' in user && user.employeeId === 'admin01') {
-        return true;
-    }
-    // if not super admin, redirect to admin dashboard
-    return router.parseUrl('/admin'); 
+const contractorGuard: CanActivateFn = () => {
+  const db = inject(DbService);
+  const router = inject(Router);
+  return db.currentUser()?.role === 'contractor'
+    ? true
+    : router.parseUrl('/login');
 };
 
-const contractorGuard: CanActivateFn = (route, state) => {
-  const authService = inject(AuthService);
-  const router: Router = inject(Router);
-  const user = authService.currentUser();
-  if (user && 'businessName' in user) { // Property unique to contractors
-    return true;
-  }
-  return router.parseUrl('/login');
-};
-
+/* =========================
+   ROUTES
+   ========================= */
 export const routes: Routes = [
+
+  /* ---------- LOGIN ---------- */
   { path: 'login', component: LoginComponent },
-  { path: 'admin', component: AdminDashboardComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/analytics', component: AnalyticsDashboardComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/employees', component: EmployeeManagementComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/contractors', component: ManageContractorsComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/manage-coupons', component: ManageCouponsComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/history', component: HistoryComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/history/employee/:id', component: EmployeeHistoryComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'admin/settings', component: SettingsComponent, canActivate: [authGuard, superAdminGuard] },
-  { path: 'add-employee', component: AddEmployeeComponent, canActivate: [authGuard, adminGuard] },
-  { path: 'employee', component: EmployeeDashboardComponent, canActivate: [authGuard] },
-  { path: 'contractual-employee', redirectTo: '/employee', pathMatch: 'full'},
-  { path: 'canteen-manager', component: CanteenManagerDashboardComponent, canActivate: [authGuard] },
-  { path: 'canteen-manager/redeem', component: RedeemCouponComponent, canActivate: [authGuard] },
-  { path: 'canteen-manager/menu', component: MenuManagementComponent, canActivate: [authGuard] },
-  { path: 'contractor', component: ContractorDashboardComponent, canActivate: [authGuard, contractorGuard] },
-  { path: 'change-password', component: ChangePasswordComponent, canActivate: [authGuard] },
+
+  /* ---------- ADMIN (WITH SIDEBAR LAYOUT) ---------- */
+  {
+    path: 'admin',
+    component: AdminLayoutComponent,
+    canActivate: [authGuard, adminGuard],
+    children: [
+      { path: '', component: AdminDashboardComponent },
+      { path: 'analytics', component: AnalyticsDashboardComponent },
+      { path: 'employees', component: EmployeeManagementComponent },
+      { path: 'contractors', component: ManageContractorsComponent },
+      { path: 'manage-coupons', component: ManageCouponsComponent },
+      { path: 'history', component: HistoryComponent },
+      { path: 'history/employee/:id', component: EmployeeHistoryComponent },
+      { path: 'settings', component: SettingsComponent },
+      { path: 'add-employee', component: AddEmployeeComponent }
+    ]
+  },
+
+  /* ---------- EMPLOYEE ---------- */
+  {
+    path: 'employee',
+    component: EmployeeDashboardComponent,
+    canActivate: [authGuard]
+  },
+
+  /* ---------- CANTEEN MANAGER ---------- */
+  {
+    path: 'canteen-manager',
+    component: CanteenManagerDashboardComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'canteen-manager/redeem',
+    component: RedeemCouponComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'canteen-manager/menu',
+    component: MenuManagementComponent,
+    canActivate: [authGuard]
+  },
+
+  /* ---------- CONTRACTOR ---------- */
+  {
+    path: 'contractor',
+    component: ContractorDashboardComponent,
+    canActivate: [authGuard, contractorGuard]
+  },
+
+  /* ---------- COMMON ---------- */
+  {
+    path: 'change-password',
+    component: ChangePasswordComponent,
+    canActivate: [authGuard]
+  },
+
+  /* ---------- DEFAULT ---------- */
   { path: '', redirectTo: '/login', pathMatch: 'full' },
   { path: '**', redirectTo: '/login' }
 ];

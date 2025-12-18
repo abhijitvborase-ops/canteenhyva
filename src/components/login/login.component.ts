@@ -1,56 +1,75 @@
 import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
 import { Validators, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
+import { DbService } from '../../app/services/db.service'; // ✅ CORRECT PATH
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
+  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule]
 })
 export class LoginComponent {
-  private authService = inject(AuthService);
-  // FIX: Explicitly type the injected Router to resolve type inference issue.
-  private router: Router = inject(Router);
+
+  private db = inject(DbService);
+  private router = inject(Router);
 
   errorMessage = signal<string | null>(null);
+  isLoading = signal(false);
 
   loginForm = new FormGroup({
-    loginId: new FormControl('', [Validators.required]),
-    password: new FormControl('', [Validators.required]),
+    loginId: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required]
+    }),
+    password: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required]
+    }),
     rememberMe: new FormControl(false)
   });
-  
+
   async handleLogin() {
-    if (this.loginForm.valid) {
-      this.errorMessage.set(null);
-      const { loginId, password } = this.loginForm.value;
-      const result = await this.authService.login(loginId!, password!);
-      if (result.success) {
-        const user = this.authService.currentUser();
-        if (user) {
-          // Check if user is an Employee (has a 'role' property)
-          if ('role' in user) {
-            let route = '/employee'; // default route
-            if (user.role === 'admin') {
-              route = '/admin';
-            } else if (user.role === 'canteen manager') {
-              route = '/canteen-manager';
-            } else if (user.role === 'contractual employee') {
-              route = '/contractual-employee';
-            }
-            await this.router.navigate([route]);
-          } else {
-            // User is a Contractor, redirect to contractor dashboard
-            await this.router.navigate(['/contractor']);
-          }
-        }
-      } else {
-        this.errorMessage.set(result.message || 'An unknown error occurred.');
-        setTimeout(() => this.errorMessage.set(null), 5000);
+    if (this.loginForm.invalid || this.isLoading()) return;
+
+    this.errorMessage.set(null);
+    this.isLoading.set(true);
+
+    const loginId = this.loginForm.controls.loginId.value.trim();
+    const password = this.loginForm.controls.password.value;
+
+    try {
+      const result = await this.db.login(loginId, password);
+
+      if (!result.success || !result.user) {
+        this.errorMessage.set(result.message || 'Invalid login credentials');
+        return;
       }
+
+      const user = result.user;
+
+      /* =========================
+         ROLE → ROUTE (MATCHES app.routes.ts)
+         ========================= */
+      let route = '/employee';
+
+      if (user.role === 'admin') {
+        route = '/admin';
+      } else if (user.role === 'canteen manager') {
+        route = '/canteen-manager';
+      } else if (user.role === 'contractor') {
+        route = '/contractor';
+      }
+
+      await this.router.navigateByUrl(route);
+
+    } catch (error) {
+      console.error('Login error:', error);
+      this.errorMessage.set('Login failed. Please try again.');
+    } finally {
+      this.isLoading.set(false);
     }
   }
 }
